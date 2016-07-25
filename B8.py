@@ -488,3 +488,21 @@ class B8System:
             else:
                 prc.append(pinfo)
         return prc
+
+
+class B8Dir:
+    """
+    Class for handling files and folders inside a directory
+    """
+
+    def get_structure(self, path):
+        d = {'name': os.path.basename(path)}
+        if os.path.isdir(path):
+            d['type'] = "directory"
+            try:
+                d['children'] = [self.get_structure(os.path.join(path, x)) for x in os.listdir(path)]
+            except:
+                d['children'] = 'Forbidden'
+        else:
+            d['type'] = "file"
+        return d
