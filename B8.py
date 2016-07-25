@@ -7,15 +7,16 @@ import base64
 import random
 import string
 import socket
-import pymssql
-import pymysql
+#import pymssql
+#import pymysql
 import smtplib
 import datetime
+import psutil
 
-import dns.resolver
+#import dns.resolver
 import requests
-from bs4 import BeautifulSoup
-import unicodecsv
+#from bs4 import BeautifulSoup
+#import unicodecsv
 
 
 class B8Database:
@@ -432,3 +433,58 @@ class B8Mail:
     def quit(self):
         self.server.quit()
 
+
+class B8System:
+    """
+    Class for System functions
+    """
+
+    def get_bits(self):
+        return platform.machine()
+
+    def get_version(self):
+        return platform.platform()
+
+    def get_cpu(self):
+        return platform.processor()
+
+    def get_cpu_num(self):
+        return psutil.cpu_count()
+
+    def get_memory_total(self):
+        return psutil.virtual_memory()[0]
+
+    def get_memory_available(self):
+        return psutil.virtual_memory()[1]
+
+    def get_disk_partitions(self):
+        return psutil.disk_partitions()
+
+    def get_disk_usage_total(self, path='/'):
+        return psutil.disk_usage(path)[0]
+
+    def get_disk_usage_free(self, path='/'):
+        return psutil.disk_usage(path)[2]
+
+    def get_net_connections(self):
+        return psutil.net_connections()
+
+    def get_net_addr(self):
+        return psutil.net_if_addrs()
+
+    def get_boot_time(self):
+        return psutil.boot_time()
+
+    def get_users(self):
+        return psutil.users()
+
+    def get_processes(self):
+        prc = []
+        for proc in psutil.process_iter():
+            try:
+                pinfo = proc.as_dict(attrs=['pid', 'name', 'username', 'cmdline'])
+            except psutil.NoSuchProcess:
+                pass
+            else:
+                prc.append(pinfo)
+        return prc
