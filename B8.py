@@ -499,10 +499,13 @@ class B8Dir:
         d = {'name': os.path.basename(path)}
         if os.path.isdir(path):
             d['type'] = "directory"
-            try:
-                d['children'] = [self.get_structure(os.path.join(path, x)) for x in os.listdir(path)]
-            except:
+            if not os.access(path, os.R_OK):
                 d['children'] = 'Forbidden'
+            else:
+                try:
+                    d['children'] = [self.get_structure(os.path.join(path, x)) for x in os.listdir(path)]
+                except:
+                    d['children'] = 'No Access'
         else:
             d['type'] = "file"
         return d
