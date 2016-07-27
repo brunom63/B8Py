@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import sys
 import platform
 import re
 import base64
@@ -495,7 +496,7 @@ class B8Dir:
     Class for handling files and folders inside a directory
     """
 
-    def get_structure(self, path):
+    def get_directories(self, path):
         d = {'name': os.path.basename(path)}
         if os.path.isdir(path):
             d['type'] = "directory"
@@ -509,3 +510,30 @@ class B8Dir:
         else:
             d['type'] = "file"
         return d
+
+
+class B8Win:
+    """
+    Class for Windows specific
+    """
+
+    def get_registry(self):
+        if 'nt' in sys.builtin_module_names:
+            import _winreg as winreg
+
+            regkeys = [winreg.HKEY_USERS, winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]
+
+            for key in regkeys:
+                handle = winreg.ConnectRegistry(None, key)
+
+                ex = True
+                ind = 0
+                while ex:
+                    try:
+                        print winreg.EnumKey(handle, ind)
+                        ind += 1
+                    except WindowsError:
+                        ex = False
+
+
+
