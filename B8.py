@@ -8,16 +8,17 @@ import base64
 import random
 import string
 import socket
-#import pymssql
-#import pymysql
+import pymssql
+import pymysql
 import smtplib
 import datetime
 import psutil
+import subprocess
 
-#import dns.resolver
+import dns.resolver
 import requests
-#from bs4 import BeautifulSoup
-#import unicodecsv
+from bs4 import BeautifulSoup
+import unicodecsv
 
 
 class B8Database:
@@ -28,7 +29,7 @@ class B8Database:
         pip install pymysql
     """
 
-    def __init__(self, dbtype, dbhost, dbuser, dbpass, dbdatabase, dbport=None):
+    def __init__(self, dbtype, dbhost, dbuser, dbpass, dbdatabase, dbport=None, dbtimeout=None):
         dport = None
 
         if dbport is None:
@@ -39,14 +40,19 @@ class B8Database:
         else:
             dport = dbport
 
-        self.dbtype = dbtype
-        self.conn = self.connect(dbhost, dbuser, dbpass, dbdatabase, dport)
+        if dbtimeout is None and dbtype == "mssql":
+            dbtimeout = 0
 
-    def connect(self, dbhost, dbuser, dbpass, dbdatabase, dbport):
+        self.dbtype = dbtype
+        self.conn = self.connect(dbhost, dbuser, dbpass, dbdatabase, dport, dbtimeout)
+
+    def connect(self, dbhost, dbuser, dbpass, dbdatabase, dbport, dbtimeout):
         if self.dbtype == "mysql":
-            return pymysql.connect(host=dbhost, port=dbport, user=dbuser, passwd=dbpass, db=dbdatabase)
+            return pymysql.connect(host=dbhost, port=dbport, user=dbuser, passwd=dbpass, db=dbdatabase,
+                                   connect_timeout=dbtimeout, read_timeout=dbtimeout, write_timeout=dbtimeout)
         elif self.dbtype == "mssql":
-            return pymssql.connect(host=dbhost, port=dbport, user=dbuser, password=dbpass, database=dbdatabase)
+            return pymssql.connect(host=dbhost, port=dbport, user=dbuser, password=dbpass, database=dbdatabase,
+                                   timeout=dbtimeout, login_timeout=dbtimeout)
 
     def select(self, query, values=None, fetchone=False, dictmode=True):
         if self.dbtype == "mysql":
@@ -333,6 +339,18 @@ class B8Networking:
 
         return tag_re.sub('', text)
 
+    def network_fingerprint(self, ip):
+        sip = ip.split(".")
+        nip = sip[0] + '.' + sip[1] + '.' + sip[2] + '.'
+
+        live_hosts = []
+        for i in range(2, 254):
+            lip = nip + str(i)
+            if self.ping(lip):
+                live_hosts.append(lip)
+
+        return live_hosts
+
     def dir_search(self, host, pylocation, dirsearch, wordlist):
         """
          Requires dirs3arch for python 2.7
@@ -473,6 +491,18 @@ class B8System:
     def get_net_addr(self):
         return psutil.net_if_addrs()
 
+    def get_net_addr_win_addr(self, netinfo, ethname):
+        return netinfo[ethname][1][1]
+
+    def get_net_addr_win_mac(self, netinfo, ethname):
+        return netinfo[ethname][0][1]
+
+    def get_net_addr_linux_addr(self, netinfo, ethname):
+        return netinfo[ethname][0][1]
+
+    def get_net_addr_linux_mac(self, netinfo, ethname):
+        return netinfo[ethname][2][1]
+
     def get_boot_time(self):
         return psutil.boot_time()
 
@@ -504,7 +534,7 @@ class B8Dir:
                 d['children'] = 'Forbidden'
             else:
                 try:
-                    d['children'] = [self.get_structure(os.path.join(path, x)) for x in os.listdir(path)]
+                    d['children'] = [self.get_directories(os.path.join(path, x)) for x in os.listdir(path)]
                 except:
                     d['children'] = 'No Access'
         else:
@@ -521,19 +551,37 @@ class B8Win:
         if 'nt' in sys.builtin_module_names:
             import _winreg as winreg
 
-            regkeys = [winreg.HKEY_USERS, winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]
+            regkeys = [[winreg.HKEY_USERS, 'HKEY_USERS'], [winreg.HKEY_CURRENT_USER, 'HKEY_CURRENT_USER'], [winreg.HKEY_LOCAL_MACHINE, 'HKEY_LOCAL_MACHINE']]
+            k = []
 
             for key in regkeys:
-                handle = winreg.ConnectRegistry(None, key)
+                h = {'path': key[1], 'children': self.get_all_subkeys(key[0], '')}
+                k.append(h)
 
-                ex = True
-                ind = 0
-                while ex:
-                    try:
-                        print winreg.EnumKey(handle, ind)
-                        ind += 1
-                    except WindowsError:
-                        ex = False
+            return k
 
+    def get_all_subkeys(self, key, path):
+        if 'nt' in sys.builtin_module_names:
+            import _winreg as winreg
 
+            h = {'path': path}
+            try:
+                handle = winreg.OpenKey(key, path, 0, winreg.KEY_ALL_ACCESS)
 
+                h['values'] = []
+                for i in xrange(0, winreg.QueryInfoKey(handle)[1]):
+                    vl = winreg.EnumValue(handle, i)
+                    h['values'].append([vl[0], vl[1]])
+
+                lpath = path if path is "" else path+'\\'
+                h['children'] = [self.get_all_subkeys(key, lpath+winreg.EnumKey(handle, i)) for i in xrange(0, winreg.QueryInfoKey(handle)[0])]
+            except:
+                h['children'] = 'Forbidden'
+
+            return h
+
+    def get_system_info(self):
+        return subprocess.check_output("systeminfo")
+
+    def get_processes(self):
+        return subprocess.check_output("tasklist")
